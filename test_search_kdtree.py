@@ -5,7 +5,7 @@ from PIL import Image
 from torchvision import transforms
 import matplotlib.pyplot as plt
 import torch.nn.functional as F
-from utils import evaluate_model
+from utils import evaluate_model, class_names, preprocess, tensor_to_list
 from load_data import LOAD_DATA
 import warnings
 from sklearn.neighbors import KDTree
@@ -13,6 +13,7 @@ import time
 from torch.utils.data import DataLoader
 import numpy as np
 from sklearn.neighbors import NearestNeighbors
+import sys
 
 warnings.filterwarnings("ignore")
 
@@ -30,26 +31,6 @@ model.eval()
 feature_extractor = torch.nn.Sequential(*list(model.children())[:-1])
 feature_extractor.to(device)
 feature_extractor.eval()
-
-def show_image(img, label, prediction):
-    print(img.shape)
-    img = img.permute(1, 2, 0).cpu().numpy()
-    img = img * [0.229, 0.224, 0.225] + [0.485, 0.456, 0.406]
-    print(img.shape)
-    plt.imshow(img)
-    plt.title(f'Label: {class_names[label]} | Prediction: {class_names[prediction]}')
-    plt.show()
-
-def tensor_to_list(tensor):
-    return tensor.squeeze(0).view(-1).cpu().tolist()
-
-# Định nghĩa các bước tiền xử lý ảnh (giống như lúc huấn luyện)
-preprocess = transforms.Compose([
-    transforms.Resize(256),
-    transforms.CenterCrop(224),  
-    transforms.ToTensor(),          # Chuyển ảnh thành Tensor
-    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])  # Chuẩn hóa
-])
 
 if __name__ == '__main__':
     myData = LOAD_DATA("dataset", ["Training Data", "Validation Data", "Testing Data"]) # load dữ liệu từ lớp LOAD_DATA
@@ -87,6 +68,7 @@ if __name__ == '__main__':
 
     # Lặp qua tất cả các ảnh trong tập dữ liệu thử nghiệm và trích xuất đặc trưng
     for i in range(len(testing_dataset.samples)):
+        sys.stdout.write(f"\rĐang trích xuất feature map từ ảnh thứ {i+1}/{len(testing_dataset.samples)}")
         img_path = testing_dataset.samples[i][0]
         img_sp = Image.open(img_path)
         ft_map = preprocess(img_sp).unsqueeze(0).to(device)
