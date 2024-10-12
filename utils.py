@@ -1,5 +1,8 @@
 import torch
 import sys
+import matplotlib.pyplot as plt
+from torchvision import transforms
+import json
 
 def train_model(model, dataloaders, dataset_sizes, criterion, optimizer, device, num_epochs=25):
     best_model_wts = model.state_dict()
@@ -92,3 +95,35 @@ def evaluate_model(model, dataloader, dataset_sizes, device):
     print(f'Test Acc: {test_acc:.4f}')
 
 class_names = ["Training Data", "Validation Data", "Testing Data"]
+
+def show_image(img, label, prediction):
+    print(img.shape)
+    img = img.permute(1, 2, 0).cpu().numpy()
+    img = img * [0.229, 0.224, 0.225] + [0.485, 0.456, 0.406]
+    print(img.shape)
+    plt.imshow(img)
+    plt.title(f'Label: {class_names[label]} | Prediction: {class_names[prediction]}')
+    plt.show()
+
+def tensor_to_list(tensor):
+    return tensor.squeeze(0).view(-1).cpu().tolist()
+
+# Định nghĩa các bước tiền xử lý ảnh (giống như lúc huấn luyện)
+preprocess = transforms.Compose([
+    transforms.Resize(256),
+    transforms.CenterCrop(224),  
+    transforms.ToTensor(),          # Chuyển ảnh thành Tensor
+    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])  # Chuẩn hóa
+])
+
+# Hàm lưu vector vào MySQL
+def save_vector_to_db(vector, connection, cursor):
+    # Chuyển vector sang dạng JSON
+    vector_json = json.dumps(vector)
+    
+    # Câu lệnh SQL để chèn vector vào bảng
+    query = "INSERT INTO list_vectors (vector) VALUES (%s)"
+    
+    # Thực thi câu lệnh SQL
+    cursor.execute(query, (vector_json,))
+    connection.commit()
