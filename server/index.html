@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Chuyển Văn Bản và Xử Lý Ảnh</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 50px;
+        }
+        #section {
+            margin-bottom: 40px;
+        }
+        input[type="text"], input[type="file"] {
+            width: 300px;
+            padding: 10px;
+            font-size: 16px;
+        }
+        button {
+            padding: 10px 15px;
+            font-size: 16px;
+            margin-left: 10px;
+        }
+        #result, #image-result {
+            margin-top: 20px;
+            font-weight: bold;
+            color: blue;
+        }
+        #processed-image {
+            margin-top: 20px;
+            max-width: 500px;
+            height: auto;
+            border: 1px solid #ccc;
+            padding: 10px;
+        }
+        #listImageResult {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-around;
+            gap: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Tìm kiếm hình ảnh tương tự</h1>
+
+    <!-- Phần xử lý ảnh -->
+    <div id="section">
+        <h2>Chọn ảnh</h2>
+        <input type="file" id="imageInput" accept="image/*">
+        <button onclick="sendImage()">Chọn ảnh</button>
+        <div id="image-result"></div>
+        <img id="originalImage" src="" alt="" style="display: none;">
+        <div id="listImageResult">
+
+        </div>
+        <!-- <img id="processed-image" src="" alt="Ảnh đã xử lý" style="display: none;"> -->
+    </div>
+
+    <script>
+        function sendImage() {
+            const imageInput = document.getElementById('imageInput');
+            const file = imageInput.files[0];
+            if (!file) {
+                alert('Vui lòng chọn một tệp ảnh để xử lý.');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('image', file);
+
+            const originalImage = document.getElementById('originalImage');
+            originalImage.src = URL.createObjectURL(file);
+            originalImage.style.display = 'block';
+
+            document.getElementById('image-result').innerText = 'Đang xử lý ảnh...';
+
+            fetch('/process_image', {  // Sử dụng đường dẫn tương đối
+                method: 'POST',
+                body: formData,
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    document.getElementById('image-result').innerText = 'Error: ' + data.error;
+                    document.getElementById('originalImage').style.display = 'none';
+                } else {
+                    document.getElementById('image-result').innerText = data.message;
+                    document.getElementById('listImageResult').innerHTML = '';
+                    data.image_data.forEach(imgBase64 => {
+                        const imageUrl = 'data:image/png;base64,' + imgBase64;
+                        const img = document.createElement('img');
+                        img.src = imageUrl;
+                        img.style.width = '200px';
+                        img.style.height = 'auto';
+                        document.getElementById('listImageResult').appendChild(img);
+                    });
+                }
+            })
+            .catch((error) => {
+                console.error('Error:', error);
+                document.getElementById('image-result').innerText = 'Error processing image.';
+            });
+        }
+    </script>
+</body>
+</html>
