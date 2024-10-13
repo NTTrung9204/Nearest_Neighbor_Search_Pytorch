@@ -69,7 +69,8 @@ if __name__ == '__main__':
     # Lưu feature map vào MySQL
     for i, feature_map in enumerate(list_feature_map):
         sys.stdout.write(f"\rĐang lưu feature map thứ {i+1}/{len(list_feature_map)}")
-        save_vector_to_db(feature_map, connection, cursor)
+        img_path = testing_dataset.samples[i][0]
+        save_vector_to_db(feature_map, connection, cursor, img_path)
 
     print("\nĐã lưu xong feature map.")
     # Đóng kết nối
