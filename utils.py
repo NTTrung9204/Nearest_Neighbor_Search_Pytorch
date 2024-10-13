@@ -127,3 +127,27 @@ def save_vector_to_db(vector, connection, cursor):
     # Thực thi câu lệnh SQL
     cursor.execute(query, (vector_json,))
     connection.commit()
+
+def query_random_1000_vectors(cursor):
+    # Tạo bảng tạm để lưu 1000 ID ngẫu nhiên
+    create_temp_table_query = """
+        CREATE TEMPORARY TABLE temp_ids AS
+        SELECT id
+        FROM list_vectors
+        ORDER BY RAND()
+        LIMIT 1000;
+    """
+    cursor.execute(create_temp_table_query)
+    
+    # Truy vấn 1000 vector tương ứng với 1000 ID ngẫu nhiên
+    select_vectors_query = """
+        SELECT id, vector
+        FROM list_vectors
+        WHERE id IN (SELECT id FROM temp_ids);
+    """
+    cursor.execute(select_vectors_query)
+    
+    # Lấy kết quả truy vấn
+    list_vectors = cursor.fetchall()
+    
+    return list_vectors
