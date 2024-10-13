@@ -3,6 +3,12 @@ import sys
 import matplotlib.pyplot as plt
 from torchvision import transforms
 import json
+from sklearn.neighbors import NearestNeighbors
+from PIL import Image
+import io
+import base64
+from model import MODEL
+
 
 def train_model(model, dataloaders, dataset_sizes, criterion, optimizer, device, num_epochs=25):
     best_model_wts = model.state_dict()
@@ -117,15 +123,18 @@ preprocess = transforms.Compose([
 ])
 
 # Hàm lưu vector vào MySQL
-def save_vector_to_db(vector, connection, cursor):
+def save_vector_to_db(vector, connection, cursor, path_name):
     # Chuyển vector sang dạng JSON
     vector_json = json.dumps(vector)
     
     # Câu lệnh SQL để chèn vector vào bảng
-    query = "INSERT INTO list_vectors (vector) VALUES (%s)"
+    query = """
+        INSERT INTO list_vectors 
+            (vector, path_name) VALUES (%s, %s);
+    """
     
     # Thực thi câu lệnh SQL
-    cursor.execute(query, (vector_json,))
+    cursor.execute(query, (vector_json, path_name,))
     connection.commit()
 
 def query_random_1000_vectors(cursor):
@@ -141,7 +150,7 @@ def query_random_1000_vectors(cursor):
     
     # Truy vấn 1000 vector tương ứng với 1000 ID ngẫu nhiên
     select_vectors_query = """
-        SELECT id, vector
+        SELECT id, vector, path_name
         FROM list_vectors
         WHERE id IN (SELECT id FROM temp_ids);
     """
@@ -149,5 +158,63 @@ def query_random_1000_vectors(cursor):
     
     # Lấy kết quả truy vấn
     list_vectors = cursor.fetchall()
+
+    # Xóa bảng tạm
+    drop_temp_table_query = "DROP TEMPORARY TABLE temp_ids;"
+    
+    cursor.execute(drop_temp_table_query)
     
     return list_vectors
+
+def query_top_k_most_similar_vectors(vector, cursor, k=5):
+    list_vectors_db = query_random_1000_vectors(cursor)
+
+    # Tạo cây KDTree để tìm kiếm k vector tương đồng nhất
+    kdtree = NearestNeighbors(n_neighbors=k, metric='euclidean')
+
+    # Chuyển list_vectors từ dạng tuple sang dạng list
+    list_vectors = [json.loads(vector[1]) for vector in list_vectors_db]
+
+    # Tìm kiếm k vector tương đồng nhất
+    kdtree.fit(list_vectors)
+
+    distances, indexs = kdtree.kneighbors([vector], n_neighbors=k)
+
+    image_paths = [list_vectors_db[index][2] for index in indexs[0]]
+    return distances, image_paths
+
+def query_top_k_most_similar_images(vector, cursor, k=5):
+    # Tìm kiếm k vector tương đồng nhất
+    distances, image_paths = query_top_k_most_similar_vectors(vector, cursor, k)
+    
+    # Đọc ảnh từ đường dẫn
+    images_base64 = [Convert_PIL_image_to_base64(Image.open(image_path)) for image_path in image_paths]
+
+    return distances, images_base64
+
+def Convert_PIL_image_to_base64(PIL_image):
+    img_io = io.BytesIO()
+    PIL_image.save(img_io, format='PNG')
+    img_io.seek(0)
+    img_base64 = base64.b64encode(img_io.getvalue()).decode('utf-8')
+    return img_base64
+
+def get_feature_map_from_image(image_stream):
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    model = MODEL(['Coast', 'Desert', 'Forest', 'Glacier', 'Mountain'], device).load_model()
+    model.load_state_dict(torch.load('model_efficientnet_b5_v5.pth', map_location=device))
+    model.to(device)
+    model.eval()
+
+    feature_extractor = torch.nn.Sequential(*list(model.children())[:-1])
+    feature_extractor.to(device)
+    feature_extractor.eval()
+
+    img_sp = Image.open(image_stream)
+    ft_map = preprocess(img_sp).unsqueeze(0).to(device)
+    with torch.no_grad():
+        output_sp = feature_extractor(ft_map)
+    feature_map = tensor_to_list(output_sp)
+
+    return feature_map
