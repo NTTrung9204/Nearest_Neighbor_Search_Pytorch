@@ -23,6 +23,8 @@ connection = mysql.connector.connect(
 
 cursor = connection.cursor()
 
+table_name = "v6"
+
 app = Flask(__name__)
 CORS(app)  # Cho phép CORS để trang HTML có thể giao tiếp với máy chủ
 
@@ -49,12 +51,14 @@ def process_image():
     if file and allowed_file(file.filename):
         filename = secure_filename(file.filename)
         try:
-            # Mở ảnh từ tệp tải lên
             feature_map = get_feature_map_from_image(file.stream)
 
-            _, list_base64_images = query_top_k_most_similar_images(feature_map, cursor, k=5)
+            list_distances, list_base64_images = query_top_k_most_similar_images(feature_map, cursor, table_name, k1=25, k2=10000)
+            list_distances = list_distances[0].tolist()
+            # print('List distances:', list_distances)
+            # print('List images:', list_base64_images)
 
-            return jsonify({'message': 'Image processed successfully', 'image_data': list_base64_images}), 200
+            return jsonify({'message': 'Image processed successfully', 'image_data': list_base64_images, 'list_distances': list_distances}), 200
         except Exception as e:
             return jsonify({'error': f'Error processing image: {str(e)}'}), 500
     else:
