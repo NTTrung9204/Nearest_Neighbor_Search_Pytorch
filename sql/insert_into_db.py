@@ -7,6 +7,7 @@ from PIL import Image
 import torch
 import warnings
 import sys
+from EfficientNet_model import load_model
 
 from pathlib import Path
 
@@ -31,12 +32,13 @@ class_names = ['Coast', 'Desert', 'Forest', 'Glacier', 'Mountain']
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-model = MODEL(class_names, device).load_model()
-model.load_state_dict(torch.load('model_efficientnet_b5_v5.pth', map_location=device))
+# model = MODEL(class_names, device).load_model()
+model = load_model(class_names, device)
+model.load_state_dict(torch.load('model_efficientnet_b5_v6.pth', map_location=device))
 model.to(device)
 model.eval()
 
-feature_extractor = torch.nn.Sequential(*list(model.children())[:-1])
+feature_extractor = torch.nn.Sequential(*list(model.children())[:-2])
 feature_extractor.to(device)
 feature_extractor.eval()
 
