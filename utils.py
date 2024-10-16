@@ -8,6 +8,7 @@ from PIL import Image
 import io
 import base64
 from model import MODEL
+from EfficientNet_model import load_model
 
 
 def train_model(model, dataloaders, dataset_sizes, criterion, optimizer, device, num_epochs=25):
@@ -100,7 +101,9 @@ def evaluate_model(model, dataloader, dataset_sizes, device):
     test_acc = running_corrects.double() / dataset_sizes['Testing Data']
     print(f'Test Acc: {test_acc:.4f}')
 
-class_names = ["Training Data", "Validation Data", "Testing Data"]
+dir_names = ["Training Data", "Validation Data", "Testing Data"]
+
+class_names = ['Coast', 'Desert', 'Forest', 'Glacier', 'Mountain']
 
 def show_image(img, label, prediction):
     print(img.shape)
@@ -108,7 +111,7 @@ def show_image(img, label, prediction):
     img = img * [0.229, 0.224, 0.225] + [0.485, 0.456, 0.406]
     print(img.shape)
     plt.imshow(img)
-    plt.title(f'Label: {class_names[label]} | Prediction: {class_names[prediction]}')
+    plt.title(f'Label: {dir_names[label]} | Prediction: {dir_names[prediction]}')
     plt.show()
 
 def tensor_to_list(tensor):
@@ -129,7 +132,7 @@ def save_vector_to_db(vector, connection, cursor, path_name):
     
     # Câu lệnh SQL để chèn vector vào bảng
     query = """
-        INSERT INTO list_vectors 
+        INSERT INTO v6 
             (vector, path_name) VALUES (%s, %s);
     """
     
@@ -137,21 +140,46 @@ def save_vector_to_db(vector, connection, cursor, path_name):
     cursor.execute(query, (vector_json, path_name,))
     connection.commit()
 
-def query_random_1000_vectors(cursor):
-    # Tạo bảng tạm để lưu 1000 ID ngẫu nhiên
-    create_temp_table_query = """
+def query_all_vectors(cursor, table_name):
+    create_temp_table_query = f"""
         CREATE TEMPORARY TABLE temp_ids AS
         SELECT id
-        FROM list_vectors
+        FROM {table_name};
+    """
+        
+    cursor.execute(create_temp_table_query)
+    
+    select_vectors_query = f"""
+        SELECT id, vector, path_name
+        FROM {table_name}
+        WHERE id IN (SELECT id FROM temp_ids);
+    """
+
+    cursor.execute(select_vectors_query)
+    
+    # Lấy kết quả truy vấn
+    list_vectors = cursor.fetchall()
+
+    # Xóa bảng tạm
+    drop_temp_table_query = "DROP TEMPORARY TABLE temp_ids;"
+    
+    cursor.execute(drop_temp_table_query)
+    
+    return list_vectors
+
+def query_random_k_vectors(cursor, table_name, k = 1000):
+    create_temp_table_query = f"""
+        CREATE TEMPORARY TABLE temp_ids AS
+        SELECT id
+        FROM {table_name}
         ORDER BY RAND()
-        LIMIT 1000;
+        LIMIT {k};
     """
     cursor.execute(create_temp_table_query)
     
-    # Truy vấn 1000 vector tương ứng với 1000 ID ngẫu nhiên
-    select_vectors_query = """
+    select_vectors_query = f"""
         SELECT id, vector, path_name
-        FROM list_vectors
+        FROM {table_name}
         WHERE id IN (SELECT id FROM temp_ids);
     """
     cursor.execute(select_vectors_query)
@@ -166,11 +194,14 @@ def query_random_1000_vectors(cursor):
     
     return list_vectors
 
-def query_top_k_most_similar_vectors(vector, cursor, k=5):
-    list_vectors_db = query_random_1000_vectors(cursor)
+def query_top_k_most_similar_vectors(vector, cursor, table_name, k1=5, k2 = 1000):
+    if k2 < 10000:
+        list_vectors_db = query_random_k_vectors(cursor, table_name, k2)
+    else:
+        list_vectors_db = query_all_vectors(cursor, table_name)
 
     # Tạo cây KDTree để tìm kiếm k vector tương đồng nhất
-    kdtree = NearestNeighbors(n_neighbors=k, metric='euclidean')
+    kdtree = NearestNeighbors(n_neighbors=k1, metric='euclidean')
 
     # Chuyển list_vectors từ dạng tuple sang dạng list
     list_vectors = [json.loads(vector[1]) for vector in list_vectors_db]
@@ -178,14 +209,14 @@ def query_top_k_most_similar_vectors(vector, cursor, k=5):
     # Tìm kiếm k vector tương đồng nhất
     kdtree.fit(list_vectors)
 
-    distances, indexs = kdtree.kneighbors([vector], n_neighbors=k)
+    distances, indexs = kdtree.kneighbors([vector], n_neighbors=k1)
 
     image_paths = [list_vectors_db[index][2] for index in indexs[0]]
     return distances, image_paths
 
-def query_top_k_most_similar_images(vector, cursor, k=5):
+def query_top_k_most_similar_images(vector, cursor, table_name, k1=5, k2 = 1000):
     # Tìm kiếm k vector tương đồng nhất
-    distances, image_paths = query_top_k_most_similar_vectors(vector, cursor, k)
+    distances, image_paths = query_top_k_most_similar_vectors(vector, cursor, table_name, k1, k2)
     
     # Đọc ảnh từ đường dẫn
     images_base64 = [Convert_PIL_image_to_base64(Image.open(image_path)) for image_path in image_paths]
@@ -202,12 +233,13 @@ def Convert_PIL_image_to_base64(PIL_image):
 def get_feature_map_from_image(image_stream):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    model = MODEL(['Coast', 'Desert', 'Forest', 'Glacier', 'Mountain'], device).load_model()
-    model.load_state_dict(torch.load('model_efficientnet_b5_v5.pth', map_location=device))
+    # model = MODEL(['Coast', 'Desert', 'Forest', 'Glacier', 'Mountain'], device).load_model()
+    model = load_model(['Coast', 'Desert', 'Forest', 'Glacier', 'Mountain'], device)
+    model.load_state_dict(torch.load('model_efficientnet_b5_v6.pth', map_location=device))
     model.to(device)
     model.eval()
 
-    feature_extractor = torch.nn.Sequential(*list(model.children())[:-1])
+    feature_extractor = torch.nn.Sequential(*list(model.children())[:-2])
     feature_extractor.to(device)
     feature_extractor.eval()
 
