@@ -14,6 +14,7 @@ from torch.utils.data import DataLoader
 import numpy as np
 from sklearn.neighbors import NearestNeighbors
 import sys
+from EfficientNet_model import load_model
 
 warnings.filterwarnings("ignore")
 
@@ -22,19 +23,21 @@ class_names = ['Coast', 'Desert', 'Forest', 'Glacier', 'Mountain']
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-model = MODEL(class_names, device).load_model()
-model.load_state_dict(torch.load('model_efficientnet_b5_v5.pth', map_location=device))
+# model = MODEL(class_names, device).load_model()
+model = load_model(class_names, device)
+model.load_state_dict(torch.load('model_efficientnet_b5_v6.pth', map_location=device))
 model.to(device)
 model.eval()
 
 # Tạo feature extractor bằng cách loại bỏ lớp cuối cùng
-feature_extractor = torch.nn.Sequential(*list(model.children())[:-1])
+feature_extractor = torch.nn.Sequential(*list(model.children())[:-2])
+# print(feature_extractor)
 feature_extractor.to(device)
 feature_extractor.eval()
 
 if __name__ == '__main__':
     myData = LOAD_DATA("dataset", ["Training Data", "Validation Data", "Testing Data"]) # load dữ liệu từ lớp LOAD_DATA
-    testing_dataset = myData.dataloaders['Validation Data'].dataset # lấy tập dữ liệu thử nghiệm
+    testing_dataset = myData.dataloaders['Testing Data'].dataset # lấy tập dữ liệu thử nghiệm
     
     input_image_path = 'actual_test_img/desert_1.jpg' # đường dẫn ảnh input
     try:
