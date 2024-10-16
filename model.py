@@ -7,7 +7,6 @@ class MODEL:
         self.device = device
 
     def load_model(self):
-        # Sử dụng mô hình ResNet18 đã được huấn luyện trước
         model = models.efficientnet_b5(pretrained=True)
 
         # Đóng băng các tham số của mô hình để không cập nhật trong quá trình huấn luyện
