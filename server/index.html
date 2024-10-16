@@ -48,7 +48,7 @@
     <div id="section">
         <h2>Chọn ảnh</h2>
         <input type="file" id="imageInput" accept="image/*">
-        <button onclick="sendImage()">Chọn ảnh</button>
+        <button onclick="sendImage()">Tìm kiếm</button>
         <div id="image-result"></div>
         <img id="originalImage" src="" alt="" style="display: none;">
         <div id="listImageResult">
@@ -87,14 +87,38 @@
                 } else {
                     document.getElementById('image-result').innerText = data.message;
                     document.getElementById('listImageResult').innerHTML = '';
-                    data.image_data.forEach(imgBase64 => {
+                    // data.image_data.forEach(imgBase64 => {
+                    //     const imageUrl = 'data:image/png;base64,' + imgBase64;
+                    //     const img = document.createElement('img');
+                    //     img.src = imageUrl;
+                    //     img.style.width = '200px';
+                    //     img.style.height = 'auto';
+                    //     img.style.margin = '10px';
+                    //     document.getElementById('listImageResult').appendChild(img);
+                    // });
+
+                    for(let i = 0; i < data.image_data.length; i++) {
+                        const imgBase64 = data.image_data[i];
                         const imageUrl = 'data:image/png;base64,' + imgBase64;
+
                         const img = document.createElement('img');
                         img.src = imageUrl;
                         img.style.width = '200px';
                         img.style.height = 'auto';
-                        document.getElementById('listImageResult').appendChild(img);
-                    });
+                        img.style.margin = '10px';
+
+                        const span = document.createElement('span');
+                        span.innerText = data.list_distances[i];
+
+                        const div = document.createElement('div');
+                        div.appendChild(img);
+                        div.appendChild(span);
+                        div.style.display = 'flex';
+                        div.style.flexDirection = 'column';
+                        div.style.alignItems = 'center';
+
+                        document.getElementById('listImageResult').appendChild(div);
+                    }
                 }
             })
             .catch((error) => {
